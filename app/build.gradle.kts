@@ -10,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId = "com.example.todocli"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
@@ -27,6 +27,9 @@ android {
 }
 
 dependencies {
+    // Material Components（テーマ用）
+    implementation(libs.material)
+    
     // Kotlinx Serialization (JSON処理)
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
 
