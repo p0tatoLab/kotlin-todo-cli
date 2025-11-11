@@ -2,11 +2,17 @@ package com.example.todocli.manager
 
 import com.example.todocli.model.Priority
 import com.example.todocli.model.Task
+import com.example.todocli.util.FileHandler
 import java.time.LocalDate
 
-class TodoManager {
+class TodoManager(private val fileHandler: FileHandler = FileHandler()) {
     private val tasks = mutableListOf<Task>()
     private var nextId = 1
+
+    init {
+        // 初期化時にファイルから読み込み
+        loadFromFile()
+    }
 
     /**
      * タスクを追加
@@ -23,6 +29,7 @@ class TodoManager {
             deadline = deadline
         )
         tasks.add(task)
+        saveToFile() // 自動保存
         return task
     }
 
@@ -45,6 +52,7 @@ class TodoManager {
 
         val task = tasks[index]
         tasks[index] = task.copy(isCompleted = !task.isCompleted)
+        saveToFile() // 自動保存
         return true
     }
 
@@ -52,7 +60,11 @@ class TodoManager {
      * タスクを削除
      */
     fun deleteTask(id: Int): Boolean {
-        return tasks.removeIf { it.id == id }
+        val result = tasks.removeIf { it.id == id }
+        if (result) {
+            saveToFile() // 自動保存
+        }
+        return result
     }
 
     /**
@@ -97,4 +109,26 @@ class TodoManager {
      * 未完了タスク数を取得
      */
     fun getIncompleteTaskCount(): Int = tasks.count { !it.isCompleted }
+
+    /**
+     * ファイルに保存
+     */
+    fun saveToFile(): Boolean {
+        return fileHandler.saveTasks(tasks)
+    }
+
+    /**
+     * ファイルから読み込み
+     */
+    fun loadFromFile(): Boolean {
+        val loadedTasks = fileHandler.loadTasks()
+        if (loadedTasks.isNotEmpty()) {
+            tasks.clear()
+            tasks.addAll(loadedTasks)
+            // 次のIDを設定（最大ID + 1）
+            nextId = (tasks.maxOfOrNull { it.id } ?: 0) + 1
+            return true
+        }
+        return false
+    }
 }

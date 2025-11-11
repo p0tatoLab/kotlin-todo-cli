@@ -34,6 +34,8 @@ class ConsoleUI(private val manager: TodoManager) {
                 "5" -> searchTasks()
                 "6" -> filterTasks()
                 "7" -> showStatistics()
+                "8" -> manualSave()
+                "9" -> manualReload()
                 "0" -> {
                     out.write("アプリケーションを終了します。\n")
                     out.flush()
@@ -59,6 +61,8 @@ class ConsoleUI(private val manager: TodoManager) {
         out.write("5. タスクを検索\n")
         out.write("6. タスクをフィルタリング\n")
         out.write("7. 統計情報を表示\n")
+        out.write("8. 手動保存\n")
+        out.write("9. ファイルから再読み込み\n")
         out.write("0. 終了\n")
         out.write("==========================================\n")
         out.flush()
@@ -266,5 +270,41 @@ class ConsoleUI(private val manager: TodoManager) {
         out.write(prompt)
         out.flush()
         return reader.readLine() ?: ""
+    }
+
+    /**
+     * 手動保存
+     */
+    private fun manualSave() {
+        out.write("--- 手動保存 ---\n")
+        out.flush()
+
+        if (manager.saveToFile()) {
+            out.write("タスクをファイルに保存しました。\n\n")
+        } else {
+            out.write("エラー: 保存に失敗しました。\n\n")
+        }
+        out.flush()
+    }
+
+    /**
+     * ファイルから再読み込み
+     */
+    private fun manualReload() {
+        out.write("--- ファイルから再読み込み ---\n")
+        out.write("警告: 現在のデータは破棄されます。よろしいですか？ (y/n): ")
+        out.flush()
+
+        val confirmation = reader.readLine() ?: ""
+        if (confirmation.lowercase() == "y") {
+            if (manager.loadFromFile()) {
+                out.write("ファイルからタスクを読み込みました。\n\n")
+            } else {
+                out.write("エラー: 読み込みに失敗しました。\n\n")
+            }
+        } else {
+            out.write("キャンセルしました。\n\n")
+        }
+        out.flush()
     }
 }
