@@ -160,13 +160,8 @@ class TodoManager(private val fileHandler: FileHandler = FileHandler()) {
      */
     fun sortByPriority(): List<Task> {
         return tasks.sortedWith(
-            compareBy<Task> {
-                when (it.priority) {
-                    Priority.HIGH -> 1
-                    Priority.MEDIUM -> 2
-                    Priority.LOW -> 3
-                }
-            }.thenBy { it.id }
+            compareBy<Task> { it.priority.sortOrder }
+                .thenBy { it.id }
         )
     }
 

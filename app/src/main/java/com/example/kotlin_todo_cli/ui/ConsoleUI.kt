@@ -79,6 +79,9 @@ class ConsoleUI(private val manager: TodoManager) {
     /**
      * タスクを追加
      */
+    /**
+     * タスクを追加
+     */
     private fun addTask() {
         out.write("--- タスクの追加 ---\n")
         out.flush()
@@ -90,28 +93,12 @@ class ConsoleUI(private val manager: TodoManager) {
             return
         }
 
-        // 優先度の選択
-        out.write("優先度を選択 (1:高, 2:中, 3:低) [デフォルト: 2]: ")
-        out.flush()
-        val priorityInput = reader.readLine() ?: "2"
-        val priority = when (priorityInput) {
-            "1" -> Priority.HIGH
-            "3" -> Priority.LOW
-            else -> Priority.MEDIUM
-        }
+        val priority = readPriority()
 
-        // 期限の入力
-        out.write("期限 (yyyy-MM-dd または yyyy/MM/dd形式、なしの場合は空Enter): ")
-        out.flush()
-        val deadlineInput = reader.readLine() ?: ""
-        val deadline = if (deadlineInput.isNotBlank()) {
-            parseDate(deadlineInput) ?: run {
-                out.write("警告: 日付の形式が正しくありません。期限なしで登録します。\n")
-                out.flush()
-                null
-            }
-        } else {
-            null
+        val deadline = readDate("期限 (yyyy-MM-dd または yyyy/MM/dd形式、なしの場合は空Enter): ")
+        if (deadline == null) {
+            // 入力があったけどパースに失敗した場合
+            // parseDate内で処理済み
         }
 
         val task = manager.addTask(title, priority, deadline)
@@ -137,9 +124,7 @@ class ConsoleUI(private val manager: TodoManager) {
 
         listAllTasks()
 
-        val idInput = readInput("切り替えるタスクのID: ")
-        val id = idInput.toIntOrNull()
-
+        val id = readInt("切り替えるタスクのID: ")
         if (id == null) {
             out.write("エラー: 有効なIDを入力してください。\n\n")
             out.flush()
@@ -166,9 +151,7 @@ class ConsoleUI(private val manager: TodoManager) {
 
         listAllTasks()
 
-        val idInput = readInput("削除するタスクのID: ")
-        val id = idInput.toIntOrNull()
-
+        val id = readInt("削除するタスクのID: ")
         if (id == null) {
             out.write("エラー: 有効なIDを入力してください。\n\n")
             out.flush()
@@ -310,11 +293,9 @@ class ConsoleUI(private val manager: TodoManager) {
      */
     private fun manualReload() {
         out.write("--- ファイルから再読み込み ---\n")
-        out.write("警告: 現在のデータは破棄されます。よろしいですか？ (y/n): ")
         out.flush()
 
-        val confirmation = reader.readLine() ?: ""
-        if (confirmation.lowercase() == "y") {
+        if (confirmAction("警告: 現在のデータは破棄されます。よろしいですか？")) {
             if (manager.loadFromFile()) {
                 out.write("ファイルからタスクを読み込みました。\n\n")
             } else {
@@ -438,11 +419,9 @@ class ConsoleUI(private val manager: TodoManager) {
      */
     private fun deleteCompletedTasks() {
         out.write("--- 完了済みタスクの一括削除 ---\n")
-        out.write("完了済みのタスクをすべて削除します。よろしいですか？ (y/n): ")
         out.flush()
 
-        val confirmation = reader.readLine() ?: ""
-        if (confirmation.lowercase() == "y") {
+        if (confirmAction("完了済みのタスクをすべて削除します。よろしいですか？")) {
             val deletedCount = manager.deleteCompletedTasks()
             out.write("${deletedCount}件の完了済みタスクを削除しました。\n\n")
             out.flush()
@@ -484,5 +463,51 @@ class ConsoleUI(private val manager: TodoManager) {
             out.write("エラー: バックアップの作成に失敗しました。\n\n")
         }
         out.flush()
+    }
+
+    /**
+     * 整数を入力（バリデーション付き）
+     */
+    private fun readInt(prompt: String, allowNull: Boolean = false): Int? {
+        val input = readInput(prompt)
+
+        if (allowNull && input.isBlank()) {
+            return null
+        }
+
+        return input.toIntOrNull()
+    }
+
+    /**
+     * 優先度を入力
+     */
+    private fun readPriority(prompt: String = "${Priority.prompt()} [デフォルト: 2]: "): Priority {
+        out.write(prompt)
+        out.flush()
+        val input = reader.readLine() ?: "2"
+        return Priority.fromNumber(input.toIntOrNull() ?: 2) ?: Priority.MEDIUM
+    }
+
+    /**
+     * 日付を入力
+     */
+    private fun readDate(prompt: String): LocalDate? {
+        out.write(prompt)
+        out.flush()
+        val input = reader.readLine() ?: ""
+
+        if (input.isBlank()) return null
+
+        return parseDate(input)
+    }
+
+    /**
+     * Yes/No確認
+     */
+    private fun confirmAction(message: String): Boolean {
+        out.write("$message (y/n): ")
+        out.flush()
+        val input = reader.readLine() ?: ""
+        return input.lowercase() == "y"
     }
 }

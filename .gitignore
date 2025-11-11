@@ -14,6 +14,6 @@
 .cxx
 local.properties
 
-# 追加：データファイル用
+# データファイル（バックアップ含む）
 data/
 *.json
