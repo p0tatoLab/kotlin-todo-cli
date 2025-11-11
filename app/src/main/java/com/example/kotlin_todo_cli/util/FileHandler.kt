@@ -75,4 +75,29 @@ class FileHandler(private val filePath: String = "data/todos.json") {
             false
         }
     }
+
+    /**
+     * バックアップファイルを作成
+     * @return バックアップファイルのパス（成功時）、null（失敗時）
+     */
+    fun createBackup(): String? {
+        return try {
+            val sourceFile = File(filePath)
+            if (!sourceFile.exists()) {
+                return null
+            }
+
+            val timestamp = java.time.LocalDateTime.now()
+                .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"))
+            val backupPath = filePath.replace(".json", "_backup_$timestamp.json")
+            val backupFile = File(backupPath)
+
+            sourceFile.copyTo(backupFile, overwrite = false)
+
+            backupPath  // バックアップファイルのパスを返す
+        } catch (e: Exception) {
+            System.err.println("エラー: バックアップの作成に失敗しました: ${e.message}")
+            null
+        }
+    }
 }

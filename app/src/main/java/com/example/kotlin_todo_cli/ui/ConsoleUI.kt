@@ -34,8 +34,12 @@ class ConsoleUI(private val manager: TodoManager) {
                 "5" -> searchTasks()
                 "6" -> filterTasks()
                 "7" -> showStatistics()
-                "8" -> manualSave()
-                "9" -> manualReload()
+                "8" -> editTask()
+                "9" -> sortAndDisplayTasks()
+                "10" -> deleteCompletedTasks()
+                "11" -> createBackup()
+                "12" -> manualSave()
+                "13" -> manualReload()
                 "0" -> {
                     out.write("アプリケーションを終了します。\n")
                     out.flush()
@@ -61,8 +65,12 @@ class ConsoleUI(private val manager: TodoManager) {
         out.write("5. タスクを検索\n")
         out.write("6. タスクをフィルタリング\n")
         out.write("7. 統計情報を表示\n")
-        out.write("8. 手動保存\n")
-        out.write("9. ファイルから再読み込み\n")
+        out.write("8. タスクを編集\n")
+        out.write("9. タスクを並び替えて表示\n")
+        out.write("10. 完了済みタスクを一括削除\n")
+        out.write("11. バックアップを作成\n")
+        out.write("12. 手動保存\n")
+        out.write("13. ファイルから再読み込み\n")
         out.write("0. 終了\n")
         out.write("==========================================\n")
         out.flush()
@@ -93,13 +101,11 @@ class ConsoleUI(private val manager: TodoManager) {
         }
 
         // 期限の入力
-        out.write("期限 (yyyy-MM-dd形式、なしの場合は空Enter): ")
+        out.write("期限 (yyyy-MM-dd または yyyy/MM/dd形式、なしの場合は空Enter): ")
         out.flush()
         val deadlineInput = reader.readLine() ?: ""
         val deadline = if (deadlineInput.isNotBlank()) {
-            try {
-                LocalDate.parse(deadlineInput)
-            } catch (e: DateTimeParseException) {
+            parseDate(deadlineInput) ?: run {
                 out.write("警告: 日付の形式が正しくありません。期限なしで登録します。\n")
                 out.flush()
                 null
@@ -240,7 +246,19 @@ class ConsoleUI(private val manager: TodoManager) {
         out.write("総タスク数: ${manager.getTaskCount()}\n")
         out.write("完了済み: ${manager.getCompletedTaskCount()}\n")
         out.write("未完了: ${manager.getIncompleteTaskCount()}\n")
-        out.write("期限切れ: ${manager.getOverdueTasks().size}\n\n")
+        out.write("期限切れ: ${manager.getOverdueTasks().size}\n")
+        out.write("完了率: ${String.format("%.1f", manager.getCompletionRate() * 100)}%\n")
+
+        // 期限が近いタスクの警告
+        val dueSoon = manager.getTasksDueSoon(3)
+        if (dueSoon.isNotEmpty()) {
+            out.write("\n⚠ 期限が近いタスク（3日以内）: ${dueSoon.size}件\n")
+            dueSoon.forEach { task ->
+                out.write("  - ${task.title} (期限: ${task.getDeadlineDisplay()})\n")
+            }
+        }
+
+        out.write("\n")
         out.flush()
     }
 
@@ -304,6 +322,166 @@ class ConsoleUI(private val manager: TodoManager) {
             }
         } else {
             out.write("キャンセルしました。\n\n")
+        }
+        out.flush()
+    }
+
+    /**
+     * タスクを編集
+     */
+    private fun editTask() {
+        out.write("--- タスクの編集 ---\n")
+        out.flush()
+
+        listAllTasks()
+
+        val idInput = readInput("編集するタスクのID: ")
+        val id = idInput.toIntOrNull()
+
+        if (id == null) {
+            out.write("エラー: 有効なIDを入力してください。\n\n")
+            out.flush()
+            return
+        }
+
+        val task = manager.findTaskById(id)
+        if (task == null) {
+            out.write("エラー: ID $id のタスクが見つかりません。\n\n")
+            out.flush()
+            return
+        }
+
+        out.write("現在のタスク: ${task.title}\n")
+        out.flush()
+
+        // タイトルの変更
+        out.write("新しいタスク名 (変更しない場合は空Enter): ")
+        out.flush()
+        val newTitle = reader.readLine() ?: ""
+
+        // 優先度の変更
+        out.write("新しい優先度 (1:高, 2:中, 3:低、変更しない場合は空Enter): ")
+        out.flush()
+        val priorityInput = reader.readLine() ?: ""
+        val newPriority = when (priorityInput) {
+            "1" -> Priority.HIGH
+            "2" -> Priority.MEDIUM
+            "3" -> Priority.LOW
+            else -> null
+        }
+
+        // 期限の変更
+        out.write("新しい期限 (yyyy-MM-dd または yyyy/MM/dd形式、変更しない場合は空Enter、削除する場合は'clear'): ")
+        out.flush()
+        val deadlineInput = reader.readLine() ?: ""
+        val newDeadline = if (deadlineInput == "clear") {
+            null
+        } else if (deadlineInput.isNotBlank()) {
+            parseDate(deadlineInput) ?: run {
+                out.write("警告: 日付の形式が正しくありません。期限は変更されません。\n")
+                out.flush()
+                null
+            }
+        } else {
+            null
+        }
+
+        val clearDeadline = deadlineInput == "clear"
+
+        if (manager.updateTask(
+                id,
+                if (newTitle.isNotBlank()) newTitle else null,
+                newPriority,
+                newDeadline,
+                clearDeadline
+            )) {
+            out.write("タスク$id を更新しました。\n\n")
+            out.flush()
+        } else {
+            out.write("エラー: 更新に失敗しました。\n\n")
+            out.flush()
+        }
+    }
+
+    /**
+     * タスクを並び替えて表示
+     */
+    private fun sortAndDisplayTasks() {
+        out.write("--- タスクの並び替え ---\n")
+        out.write("1. 優先度順（高→低）\n")
+        out.write("2. 期限順（近い順）\n")
+        out.write("3. 作成日順（新しい順）\n")
+        out.write("4. 作成日順（古い順）\n")
+        out.flush()
+
+        val choice = readInput("選択してください: ")
+
+        val sortedTasks = when (choice) {
+            "1" -> manager.sortByPriority()
+            "2" -> manager.sortByDeadline()
+            "3" -> manager.sortByCreatedDate(ascending = false)
+            "4" -> manager.sortByCreatedDate(ascending = true)
+            else -> {
+                out.write("無効な選択です。\n\n")
+                out.flush()
+                return
+            }
+        }
+
+        out.write("並び替え結果:\n")
+        out.flush()
+        displayTasks(sortedTasks)
+    }
+
+    /**
+     * 完了済みタスクを一括削除
+     */
+    private fun deleteCompletedTasks() {
+        out.write("--- 完了済みタスクの一括削除 ---\n")
+        out.write("完了済みのタスクをすべて削除します。よろしいですか？ (y/n): ")
+        out.flush()
+
+        val confirmation = reader.readLine() ?: ""
+        if (confirmation.lowercase() == "y") {
+            val deletedCount = manager.deleteCompletedTasks()
+            out.write("${deletedCount}件の完了済みタスクを削除しました。\n\n")
+            out.flush()
+        } else {
+            out.write("キャンセルしました。\n\n")
+            out.flush()
+        }
+    }
+
+    /**
+     * 日付文字列をパース（スラッシュとハイフン両対応）
+     */
+    private fun parseDate(dateString: String): LocalDate? {
+        return try {
+            // まずハイフン区切りでパース
+            LocalDate.parse(dateString)
+        } catch (e: DateTimeParseException) {
+            try {
+                // スラッシュ区切りの場合は変換してからパース
+                val normalized = dateString.replace("/", "-")
+                LocalDate.parse(normalized)
+            } catch (e: DateTimeParseException) {
+                null
+            }
+        }
+    }
+
+    /**
+     * バックアップを作成
+     */
+    private fun createBackup() {
+        out.write("--- バックアップの作成 ---\n")
+        out.flush()
+
+        val backupPath = manager.createBackup()
+        if (backupPath != null) {
+            out.write("バックアップを作成しました: $backupPath\n\n")
+        } else {
+            out.write("エラー: バックアップの作成に失敗しました。\n\n")
         }
         out.flush()
     }
